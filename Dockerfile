@@ -12,7 +12,7 @@ ADD . /gopath/src/github.com/jiaz/go-ascii-server
 RUN go install github.com/jiaz/go-ascii-server
 
 # Run the outyet command by default when the container starts.
-ENTRYPOINT /go/bin/go-ascii-server
+ENTRYPOINT /gopath/bin/go-ascii-server
 
 # Document that the service listens on port 5555.
 EXPOSE 5555
