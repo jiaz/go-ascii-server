@@ -4,7 +4,7 @@
 FROM jiaz/golang:v3
 
 # Copy the local package files to the container's workspace.
-ADD . /gopath/src/github.com/jiaz/go-ascii-server
+RUN go get github.com/jiaz/go-ascii-server
 
 # Build the outyet command inside the container.
 # (You may fetch or manage dependencies here,
