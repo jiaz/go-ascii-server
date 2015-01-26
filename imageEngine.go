@@ -37,7 +37,7 @@ func loadingMov(srcFileName string) <-chan ImageFrame {
 		srcCtx := srcStream.CodecCtx()
 		w, h := srcCtx.Width(), srcCtx.Height()
 
-		dstCodec, err := gmf.FindEncoder(gmf.AV_CODEC_ID_PNG)
+		dstCodec, err := gmf.FindEncoder(gmf.AV_CODEC_ID_JPEG2000)
 		if err != nil {
 			fatal(err)
 		}
