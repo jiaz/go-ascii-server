@@ -9,7 +9,7 @@ import (
 )
 
 func getImageFrames() <-chan ImageFrame {
-	frameChan := loadingMov("demo.m4v")
+	frameChan := loadingMov("resources/demo.m4v")
 	fmt.Println("FrameChan:", frameChan)
 	return frameChan
 }
@@ -53,7 +53,7 @@ func startServer() {
 
 	fmt.Println("Server started")
 
-	err := http.ListenAndServe("127.0.0.1:5555", nil)
+	err := http.ListenAndServe("0.0.0.0:5555", nil)
 	if err != nil {
 		fmt.Println("Listen failed")
 	}

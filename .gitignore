@@ -1,2 +1,2 @@
-*.m4v
+# ignore bin
 go-ascii-server
