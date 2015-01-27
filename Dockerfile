@@ -13,7 +13,7 @@ RUN go get github.com/jiaz/go-ascii-server
 RUN go install github.com/jiaz/go-ascii-server
 
 # Get mov
-COPY resources/demo.m4v /gopath/bin/resources/demo.m4v
+ADD https://www.dropbox.com/s/lx330yrpb3vguua/demo.m4v?dl=1 /gopath/bin/resources/demo.m4v
 
 # Set cwd to gopath/bin
 WORKDIR /gopath/bin
