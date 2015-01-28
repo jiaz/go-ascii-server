@@ -9,7 +9,10 @@ package main
 
 */
 import "C"
-import "unsafe"
+import (
+	"errors"
+	"unsafe"
+)
 
 var (
 	CACA_BLACK       uint8 = C.CACA_BLACK
@@ -27,12 +30,10 @@ func checkRet(ret C.int, err error) error {
 
 type CacaCanvas struct {
 	canvas *C.struct_caca_canvas
-	cols   int
-	lines  int
 }
 
 func NewCacaCanvas(cols int, lines int) *CacaCanvas {
-	return &CacaCanvas{canvas: C.caca_create_canvas(C.int(cols), C.int(lines)), cols: cols, lines: lines}
+	return &CacaCanvas{canvas: C.caca_create_canvas(C.int(cols), C.int(lines))}
 }
 
 func (this *CacaCanvas) Free() error {
@@ -42,9 +43,15 @@ func (this *CacaCanvas) Free() error {
 
 func (this *CacaCanvas) SetCanvasSize(cols int, lines int) error {
 	ret, err := C.caca_set_canvas_size(this.canvas, C.int(cols), C.int(lines))
-	this.cols = cols
-	this.lines = lines
 	return checkRet(ret, err)
+}
+
+func (this *CacaCanvas) Width() int {
+	return int(C.caca_get_canvas_width(this.canvas))
+}
+
+func (this *CacaCanvas) Height() int {
+	return int(C.caca_get_canvas_height(this.canvas))
 }
 
 func (this *CacaCanvas) SetColorAnsi(fg uint8, bg uint8) error {
@@ -57,9 +64,13 @@ func (this *CacaCanvas) ExportTo(format string) (string, error) {
 	defer C.free(unsafe.Pointer(ansi))
 	var length int
 	ret, err := C.caca_export_canvas_to_memory(this.canvas, ansi, (*C.size_t)(unsafe.Pointer(&length)))
-	if err != nil {
+	if ret == nil || err != nil {
+		if err == nil {
+			return "", errors.New("Failed to export canvas to format: " + format)
+		}
 		return "", err
 	}
+	defer C.free(ret)
 	output := C.GoBytes(ret, C.int(length))
 	return string(output), nil
 }
@@ -75,8 +86,13 @@ type CacaDither struct {
 
 func NewCacaDither(bpp int, width int, height int) *CacaDither {
 	return &CacaDither{
-		dither: C.caca_create_dither(C.int(bpp), C.int(width), C.int(height), C.int(bpp/8*width),
+		dither: C.caca_create_dither(C.int(bpp), C.int(height), C.int(height), C.int(bpp/8*width),
 			C.uint32_t(0x00ff0000), C.uint32_t(0x0000ff00), C.uint32_t(0x000000ff), C.uint32_t(0x00000000))}
+}
+
+func (this *CacaDither) Free() error {
+	ret, err := C.caca_free_dither(this.dither)
+	return checkRet(ret, err)
 }
 
 func (this *CacaDither) SetAlgorithm(algo string) error {
@@ -93,7 +109,9 @@ func (this *CacaDither) SetColor(color string) error {
 	return checkRet(ret, err)
 }
 
-func (this *CacaDither) DitherImage(image ImageFrame, canvas *CacaCanvas) error {
-	ret, err := C.caca_dither_bitmap(canvas.canvas, 0, 0, C.int(canvas.cols), C.int(canvas.lines), this.dither, unsafe.Pointer(&image.data[0]))
+func (this *CacaDither) DitherImage(data []byte, canvas *CacaCanvas) error {
+	ret, err := C.caca_dither_bitmap(canvas.canvas,
+		0, 0, C.int(canvas.Width()), C.int(canvas.Height()),
+		this.dither, unsafe.Pointer(&data[0]))
 	return checkRet(ret, err)
 }

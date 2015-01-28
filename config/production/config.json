@@ -1,0 +1,6 @@
+{
+    "resourcesPath" : "$GOPATH/bin/resources",
+    "publicPath" : "$GOPATH/bin/public",
+    "websocketHost" : "asciiart.cloudapp.net",
+    "listenPort" : 8080
+}

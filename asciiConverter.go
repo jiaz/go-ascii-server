@@ -1,61 +1,106 @@
 package main
 
-import (
-//	"regexp"
-)
+import "regexp"
 
-func convertImageToHtml(image ImageFrame, width int) string {
-	html := processCaca(image, width)
-	return html
-	//re := regexp.MustCompile(".*<body>(.*)</body>.*")
-	//return re.ReplaceAllString(html, "$1")
+type CacaContext struct {
+	canvas *CacaCanvas
+	dither *CacaDither
 }
 
-func processCaca(img ImageFrame, width int) string {
-	cols := width
-	lines := int(cols * img.height * 6 / img.width / 10)
-
+// cols is the number of chars in a row, ratio is the w/h of the canvas
+func NewCacaContext(cols int, bpp int, width int, height int) (*CacaContext, error) {
+	ctx := new(CacaContext)
 	canvas := NewCacaCanvas(0, 0)
+	dither := NewCacaDither(bpp, width, height)
+	ctx.canvas = canvas
+	ctx.dither = dither
+
+	lines := int(cols * 6 / 10 * height / width)
 	err := canvas.SetCanvasSize(cols, lines)
 	if err != nil {
-		fatal(err)
+		ctx.Free()
+		return nil, err
 	}
 
 	err = canvas.SetColorAnsi(CACA_BLACK, CACA_BLACK)
 	if err != nil {
-		fatal(err)
+		ctx.Free()
+		return nil, err
 	}
 	err = canvas.Clear()
 	if err != nil {
-		fatal(err)
+		ctx.Free()
+		return nil, err
 	}
 
-	dither := NewCacaDither(img.bpp, img.width, img.height)
 	err = dither.SetAlgorithm("none")
 	if err != nil {
-		fatal(err)
+		ctx.Free()
+		return nil, err
 	}
 	err = dither.SetColor("fullgray")
 	if err != nil {
-		fatal(err)
+		ctx.Free()
+		return nil, err
 	}
 
-	err = dither.DitherImage(img, canvas)
+	return ctx, nil
+}
+
+func (this *CacaContext) Free() {
+	if this.canvas != nil {
+		this.canvas.Free()
+		this.canvas = nil
+	}
+	if this.dither != nil {
+		this.dither.Free()
+		this.dither = nil
+	}
+}
+
+type AsciiConverter struct {
+	cacaCtx *CacaContext
+	re      *regexp.Regexp
+}
+
+func NewAsciiConverter(movie *Movie, cols int) (*AsciiConverter, error) {
+	cacaCtx, err := NewCacaContext(cols, movie.Bpp, movie.Width, movie.Height)
 	if err != nil {
-		fatal(err)
+		return nil, err
 	}
-
-	output, err := canvas.ExportTo("html")
+	re, err := regexp.Compile(".*<body>(.*)</body>.*")
 	if err != nil {
-		fatal(err)
+		return nil, err
 	}
+	return &AsciiConverter{cacaCtx, re}, nil
+}
 
-	err = canvas.Free()
+func (this *AsciiConverter) Free() {
+	if this.cacaCtx != nil {
+		this.cacaCtx.Free()
+	}
+}
+
+func (this *AsciiConverter) ConvertToHtml(image *ImageFrame) (string, error) {
+	html, err := processCaca(this.cacaCtx, image)
 	if err != nil {
-		fatal(err)
+		return "", err
+	}
+	return this.re.ReplaceAllString(html, "$1"), nil
+}
+
+func processCaca(ctx *CacaContext, img *ImageFrame) (string, error) {
+	err := ctx.dither.DitherImage(img.Data, ctx.canvas)
+	if err != nil {
+		return "", err
 	}
 
-	return output
+	output, err := ctx.canvas.ExportTo("html")
+	if err != nil {
+		return "", err
+	}
+
+	return output, nil
 }
 
 // func processSimple(img ImageFrame) string {

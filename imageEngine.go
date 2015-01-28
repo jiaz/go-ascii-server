@@ -1,41 +1,46 @@
 package main
 
-import (
-	"log"
-	"os"
-	"runtime/debug"
-
-	"github.com/jiaz/gmf"
-)
-
-func fatal(err error) {
-	debug.PrintStack()
-	log.Fatal(err)
-	os.Exit(0)
-}
+import "github.com/jiaz/gmf"
 
 // RGB packed image repr
 type ImageFrame struct {
-	data   []byte
-	width  int
-	height int
-	bpp    int
+	Data []byte
 }
 
-func loadingMov(srcFileName string) <-chan ImageFrame {
-	output := make(chan ImageFrame)
+type Movie struct {
+	Width      int
+	Height     int
+	Bpp        int
+	FrameCount int
+	Images     <-chan *ImageFrame
+}
+
+func loadMovie(srcFileName string) (*Movie, error) {
+	inputCtx, err := gmf.NewInputCtx(srcFileName)
+	if err != nil {
+		return nil, err
+	}
+
+	srcStream, err := inputCtx.GetBestStream(gmf.AVMEDIA_TYPE_VIDEO)
+	if err != nil {
+		return nil, err
+	}
+
+	srcCtx := srcStream.CodecCtx()
+	w, h := srcCtx.Width(), srcCtx.Height()
+
+	output := make(chan *ImageFrame)
+
+	movie := new(Movie)
+	movie.Width = w
+	movie.Height = h
+	movie.Bpp = 24
+	movie.FrameCount = srcStream.NbFrames()
+	movie.Images = output
 
 	go func() {
-		inputCtx, _ := gmf.NewInputCtx(srcFileName)
 		defer inputCtx.CloseInputAndRelease()
-
-		srcStream, err := inputCtx.GetBestStream(gmf.AVMEDIA_TYPE_VIDEO)
-		if err != nil {
-			fatal(err)
-		}
-
-		srcCtx := srcStream.CodecCtx()
-		w, h := srcCtx.Width(), srcCtx.Height()
+		defer close(output)
 
 		dstCodec, err := gmf.FindEncoder(gmf.AV_CODEC_ID_JPEG2000)
 		if err != nil {
@@ -77,17 +82,13 @@ func loadingMov(srcFileName string) <-chan ImageFrame {
 			inCtx := inStream.CodecCtx()
 
 			for frame := range packet.Frames(inCtx) {
-				defer gmf.Release(frame)
-
 				swsCtx.Scale(frame, dstFrame)
 				p := dstFrame.Data(0)
-				output <- ImageFrame{p, w, h, 24}
+				output <- &ImageFrame{p}
 			}
 		}
 
-		close(output)
-
 	}()
 
-	return output
+	return movie, nil
 }

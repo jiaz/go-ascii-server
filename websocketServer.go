@@ -1,61 +1,86 @@
 package main
 
 import (
-	"fmt"
-	"io"
+	"log"
 	"net/http"
+	"path/filepath"
+	"text/template"
 
 	"golang.org/x/net/websocket"
 )
 
-func getImageFrames() <-chan ImageFrame {
-	frameChan := loadingMov("resources/demo.m4v")
-	fmt.Println("FrameChan:", frameChan)
-	return frameChan
+var (
+	videoBuffer []string
+	indexTmpl   *template.Template
+	frameCount  int
+)
+
+func warmUp() {
+	log.Println("warming up server...")
+
+	movie, err := loadMovie(filepath.Join(config.ResourcesPath, "demo.m4v"))
+	if err != nil {
+		fatal(err)
+	}
+	converter, err := NewAsciiConverter(movie, 120)
+	if err != nil {
+		fatal(err)
+	}
+	defer converter.Free()
+
+	videoBuffer = make([]string, movie.FrameCount)
+	frameCount = 0
+	for image := range movie.Images {
+		videoBuffer[frameCount], err = converter.ConvertToHtml(image)
+		if err != nil {
+			fatal(err)
+		}
+
+		if frameCount%100 == 0 {
+			log.Println("Loading frame:", frameCount)
+		}
+		frameCount++
+		if frameCount == 2000 {
+			break
+		}
+	}
+	log.Println("warming up done")
 }
 
-var videoBuffer []string
-
-var cnt = 0
-
-func preLoadVideo() {
-	fmt.Println("warming up server...")
-	videoBuffer = make([]string, 10000)
-	imageFrames := getImageFrames()
-	for imageFrame := range imageFrames {
-		videoBuffer[cnt] = convertImageToHtml(imageFrame, 180)
-		fmt.Println("Loading frame:", cnt)
-		cnt++
+func root(w http.ResponseWriter, r *http.Request) {
+	var data = struct{ Host string }{config.WebsocketHost}
+	err := indexTmpl.Execute(w, data)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
 	}
-	fmt.Println("done")
+}
+
+func registerHandler() {
+	ws := websocket.Server{
+		Handler: func(conn *websocket.Conn) {
+			log.Println("Start streaming")
+			for _, frame := range videoBuffer[0:frameCount] {
+				websocket.Message.Send(conn, frame)
+			}
+			log.Println("Finished streaming")
+		}}
+
+	http.HandleFunc("/", root)
+	http.Handle("/play", ws)
+}
+
+func bootstrap() {
+	indexTmpl = template.Must(template.ParseFiles(filepath.Join(config.PublicPath, "index.html")))
+}
+
+func serve() {
+	log.Fatal(http.ListenAndServe("0.0.0.0:"+config.ListenPort, nil))
 }
 
 func startServer() {
-	preLoadVideo()
-
-	http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
-		w.Header().Set("Content-Type", "text/html")
-		io.WriteString(w, "Hello world\n")
-	})
-
-	server := websocket.Server{
-		Handler: func(conn *websocket.Conn) {
-			fmt.Println("on handler", conn)
-			fmt.Println("Start streaming")
-			for i := 0; i < cnt; i++ {
-				fmt.Println("sending", i)
-				websocket.Message.Send(conn, videoBuffer[i])
-			}
-			fmt.Println("Finished streaming")
-		}}
-
-	http.HandleFunc("/play", server.ServeHTTP)
-
-	fmt.Println("Server started")
-
-	err := http.ListenAndServe("0.0.0.0:5555", nil)
-	if err != nil {
-		fmt.Println("Listen failed")
-	}
-
+	loadConfig()
+	bootstrap()
+	warmUp()
+	registerHandler()
+	serve()
 }

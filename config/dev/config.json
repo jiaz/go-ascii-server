@@ -1,0 +1,6 @@
+{
+    "resourcesPath" : "./resources",
+    "publicPath": "./public",
+    "websocketHost" : "localhost:8080",
+    "listenPort" : "8080"
+}

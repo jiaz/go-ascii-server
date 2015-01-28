@@ -12,8 +12,12 @@ ADD . /gopath/src/github.com/jiaz/go-ascii-server
 RUN go get github.com/jiaz/go-ascii-server
 RUN go install github.com/jiaz/go-ascii-server
 
-# Get mov
-ADD https://www.dropbox.com/s/lx330yrpb3vguua/demo.m4v?dl=1 /gopath/bin/resources/demo.m4v
+# Copy things
+ADD public/ /gopath/bin/public
+ADD resources/ /gopath/bin/resources
+ADD config/ /gopath/bin/config
+# uncomment the following line to get a demo video
+# ADD https://www.dropbox.com/s/lx330yrpb3vguua/demo.m4v?dl=1 /gopath/bin/resources/demo.m4v
 
 # Set cwd to gopath/bin
 WORKDIR /gopath/bin
