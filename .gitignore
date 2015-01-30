@@ -1,5 +1,6 @@
 # ignore mov
 *.m4v
+*.cache
 
 # ignore bin
 go-ascii-server

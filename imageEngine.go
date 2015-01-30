@@ -8,11 +8,11 @@ type ImageFrame struct {
 }
 
 type Movie struct {
-	Width      int
-	Height     int
-	Bpp        int
-	FrameCount int
-	Images     <-chan *ImageFrame
+	Width       int
+	Height      int
+	Bpp         int
+	FrameCount  int
+	ImageStream <-chan *ImageFrame
 }
 
 func loadMovie(srcFileName string) (*Movie, error) {
@@ -36,7 +36,7 @@ func loadMovie(srcFileName string) (*Movie, error) {
 	movie.Height = h
 	movie.Bpp = 24
 	movie.FrameCount = srcStream.NbFrames()
-	movie.Images = output
+	movie.ImageStream = output
 
 	go func() {
 		defer inputCtx.CloseInputAndRelease()
@@ -83,7 +83,7 @@ func loadMovie(srcFileName string) (*Movie, error) {
 
 			for frame := range packet.Frames(inCtx) {
 				swsCtx.Scale(frame, dstFrame)
-				p := dstFrame.Data(0)
+				p := dstFrame.DataUnsafe(0)
 				output <- &ImageFrame{p}
 			}
 		}

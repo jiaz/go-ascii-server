@@ -4,13 +4,104 @@ package main
 
 #cgo pkg-config: caca
 #include <stdlib.h>
+#include <stdio.h>
 #include <errno.h>
 #include <caca.h>
+
+void *caca_export_html_div(caca_canvas_t const *cv, size_t *bytes)
+{
+    char *data, *cur;
+    int x, y, len, w, h;
+
+	w = caca_get_canvas_width(cv);
+	h = caca_get_canvas_height(cv);
+
+	*bytes = 1000 + h * (7 + w * (47 + 83 + 10 + 7));
+    cur = data = malloc(*bytes);
+
+    cur += sprintf(cur, "<div style=\"%s\">\n",
+                        "font-family: monospace, fixed; font-weight: bold;");
+
+    for(y = 0; y < h; y++)
+    {
+        const uint32_t *lineattr = caca_get_canvas_attrs(cv) + y * w;
+        const uint32_t *linechar = caca_get_canvas_chars(cv) + y * w;
+
+        for(x = 0; x < w; x += len)
+        {
+            cur += sprintf(cur, "<span style=\"");
+            if(caca_attr_to_ansi_fg(lineattr[x]) != CACA_DEFAULT)
+                cur += sprintf(cur, ";color:#%.03x",
+                               caca_attr_to_rgb12_fg(lineattr[x]));
+            if(caca_attr_to_ansi_bg(lineattr[x]) < 0x10)
+                cur += sprintf(cur, ";background-color:#%.03x",
+                               caca_attr_to_rgb12_bg(lineattr[x]));
+            if(lineattr[x] & CACA_BOLD)
+                cur += sprintf(cur, ";font-weight:bold");
+            if(lineattr[x] & CACA_ITALICS)
+                cur += sprintf(cur, ";font-style:italic");
+            if(lineattr[x] & CACA_UNDERLINE)
+                cur += sprintf(cur, ";text-decoration:underline");
+            if(lineattr[x] & CACA_BLINK)
+                cur += sprintf(cur, ";text-decoration:blink");
+            cur += sprintf(cur, "\">");
+
+            for(len = 0;
+                x + len < w && lineattr[x + len] == lineattr[x];
+                len++)
+            {
+                if(linechar[x + len] == CACA_MAGIC_FULLWIDTH)
+                    ;
+                else if((linechar[x + len] <= 0x00000020)
+                        ||
+                        ((linechar[x + len] >= 0x0000007f)
+                         &&
+                         (linechar[x + len] <= 0x000000a0)))
+                {
+					cur += sprintf(cur, "&#160;");
+                }
+                else if(linechar[x + len] == '&')
+                    cur += sprintf(cur, "&amp;");
+                else if(linechar[x + len] == '<')
+                    cur += sprintf(cur, "&lt;");
+                else if(linechar[x + len] == '>')
+                    cur += sprintf(cur, "&gt;");
+                else if(linechar[x + len] == '\"')
+                    cur += sprintf(cur, "&quot;");
+                else if(linechar[x + len] == '\'')
+                    cur += sprintf(cur, "&#39;");
+                else if(linechar[x + len] < 0x00000080)
+                    cur += sprintf(cur, "%c", (uint8_t)linechar[x + len]);
+                else if((linechar[x + len] <= 0x0010fffd)
+                        &&
+                        ((linechar[x + len] & 0x0000fffe) != 0x0000fffe)
+                        &&
+                        ((linechar[x + len] < 0x0000d800)
+                         ||
+                         (linechar[x + len] > 0x0000dfff)))
+                    cur += sprintf(cur, "&#%i;", (unsigned int)linechar[x + len]);
+                else
+					cur += sprintf(cur, "&#%i;", (unsigned int)0x0000fffd);
+            }
+            cur += sprintf(cur, "</span>");
+        }
+        cur += sprintf(cur, "<br />\n");
+    }
+
+    cur += sprintf(cur, "</div></body></html>\n");
+
+    *bytes = (uintptr_t)(cur - data);
+    data = realloc(data, *bytes);
+
+    return data;
+}
+
 
 */
 import "C"
 import (
 	"errors"
+	"fmt"
 	"unsafe"
 )
 
@@ -20,12 +111,22 @@ var (
 	CACA_TRANSPARENT uint8 = C.CACA_TRANSPARENT
 )
 
-func checkRet(ret C.int, err error) error {
-	if int(ret) == 0 {
-		return nil
-	} else {
-		return err
-	}
+type CacaExportFormat uint8
+
+const (
+	CACA_EXPORT_FMT_ANSI CacaExportFormat = iota
+	CACA_EXPORT_FMT_HTML
+	CACA_EXPORT_FMT_HTMLDIV
+)
+
+var exportFmt []*C.char = []*C.char{
+	C.CString("ansi"),
+	C.CString("html"),
+	C.CString("htmldiv"),
+}
+
+func (fmt CacaExportFormat) toCacaFmt() *C.char {
+	return exportFmt[fmt]
 }
 
 type CacaCanvas struct {
@@ -59,14 +160,22 @@ func (this *CacaCanvas) SetColorAnsi(fg uint8, bg uint8) error {
 	return checkRet(ret, err)
 }
 
-func (this *CacaCanvas) ExportTo(format string) (string, error) {
-	ansi := C.CString(format)
-	defer C.free(unsafe.Pointer(ansi))
+func (this *CacaCanvas) ExportTo(format CacaExportFormat) (string, error) {
 	var length int
-	ret, err := C.caca_export_canvas_to_memory(this.canvas, ansi, (*C.size_t)(unsafe.Pointer(&length)))
+	var err error
+	var ret unsafe.Pointer
+	cacaFmt := format.toCacaFmt()
+	switch format {
+	case CACA_EXPORT_FMT_ANSI, CACA_EXPORT_FMT_HTML:
+		ret, err = C.caca_export_canvas_to_memory(this.canvas, cacaFmt, (*C.size_t)(unsafe.Pointer(&length)))
+	case CACA_EXPORT_FMT_HTMLDIV:
+		ret, err = C.caca_export_html_div(this.canvas, (*C.size_t)(unsafe.Pointer(&length)))
+	default:
+		panic(fmt.Sprintf("Unsupported format: %d", int(format)))
+	}
 	if ret == nil || err != nil {
 		if err == nil {
-			return "", errors.New("Failed to export canvas to format: " + format)
+			return "", errors.New("Failed to export canvas to format: " + C.GoString(cacaFmt))
 		}
 		return "", err
 	}

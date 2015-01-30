@@ -86,7 +86,7 @@ func (this *AsciiConverter) ConvertToHtml(image *ImageFrame) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return this.re.ReplaceAllString(html, "$1"), nil
+	return html, err
 }
 
 func processCaca(ctx *CacaContext, img *ImageFrame) (string, error) {
@@ -95,7 +95,7 @@ func processCaca(ctx *CacaContext, img *ImageFrame) (string, error) {
 		return "", err
 	}
 
-	output, err := ctx.canvas.ExportTo("html")
+	output, err := ctx.canvas.ExportTo(CACA_EXPORT_FMT_HTMLDIV)
 	if err != nil {
 		return "", err
 	}

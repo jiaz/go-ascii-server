@@ -14,7 +14,7 @@ func TestImageEngineDecoding(t *testing.T) {
 	defer converter.Free()
 
 	j := 0
-	for img := range movie.Images {
+	for img := range movie.ImageStream {
 		t.Log("Processing frame:", j, &img)
 		j += 1
 	}
