@@ -25,5 +25,5 @@ WORKDIR /gopath/bin
 # Run the command by default when the container starts.
 ENTRYPOINT ["/gopath/bin/go-ascii-server"]
 
-# Document that the service listens on port 5555.
-EXPOSE 5555
+# Document that the service listens on port 8080.
+EXPOSE 8080
