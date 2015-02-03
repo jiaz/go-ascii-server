@@ -19,8 +19,7 @@ void *caca_export_html_div(caca_canvas_t const *cv, size_t *bytes)
 	*bytes = 1000 + h * (7 + w * (47 + 83 + 10 + 7));
     cur = data = malloc(*bytes);
 
-    cur += sprintf(cur, "<div style=\"%s\">\n",
-                        "font-family: monospace, fixed; font-weight: bold;");
+    cur += sprintf(cur, "<div>");
 
     for(y = 0; y < h; y++)
     {
@@ -85,10 +84,10 @@ void *caca_export_html_div(caca_canvas_t const *cv, size_t *bytes)
             }
             cur += sprintf(cur, "</span>");
         }
-        cur += sprintf(cur, "<br />\n");
+        cur += sprintf(cur, "<br/>");
     }
 
-    cur += sprintf(cur, "</div></body></html>\n");
+    cur += sprintf(cur, "</div>");
 
     *bytes = (uintptr_t)(cur - data);
     data = realloc(data, *bytes);
@@ -107,6 +106,7 @@ import (
 
 var (
 	CACA_BLACK       uint8 = C.CACA_BLACK
+	CACA_WHITE       uint8 = C.CACA_WHITE
 	CACA_DEFAULT     uint8 = C.CACA_DEFAULT
 	CACA_TRANSPARENT uint8 = C.CACA_TRANSPARENT
 )
@@ -195,7 +195,7 @@ type CacaDither struct {
 
 func NewCacaDither(bpp int, width int, height int) *CacaDither {
 	return &CacaDither{
-		dither: C.caca_create_dither(C.int(bpp), C.int(height), C.int(height), C.int(bpp/8*width),
+		dither: C.caca_create_dither(C.int(bpp), C.int(width), C.int(height), C.int(bpp/8*width),
 			C.uint32_t(0x00ff0000), C.uint32_t(0x0000ff00), C.uint32_t(0x000000ff), C.uint32_t(0x00000000))}
 }
 

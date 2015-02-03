@@ -15,14 +15,14 @@ func NewCacaContext(cols int, bpp int, width int, height int) (*CacaContext, err
 	ctx.canvas = canvas
 	ctx.dither = dither
 
-	lines := int(cols * 6 / 10 * height / width)
+	lines := int(cols * 5 / 10 * height / width)
 	err := canvas.SetCanvasSize(cols, lines)
 	if err != nil {
 		ctx.Free()
 		return nil, err
 	}
 
-	err = canvas.SetColorAnsi(CACA_BLACK, CACA_BLACK)
+	err = canvas.SetColorAnsi(CACA_WHITE, CACA_BLACK)
 	if err != nil {
 		ctx.Free()
 		return nil, err
@@ -82,20 +82,28 @@ func (this *AsciiConverter) Free() {
 }
 
 func (this *AsciiConverter) ConvertToHtml(image *ImageFrame) (string, error) {
-	html, err := processCaca(this.cacaCtx, image)
+	html, err := processCaca(CACA_EXPORT_FMT_HTMLDIV, this.cacaCtx, image)
 	if err != nil {
 		return "", err
 	}
-	return html, err
+	return html, nil
 }
 
-func processCaca(ctx *CacaContext, img *ImageFrame) (string, error) {
+func (this *AsciiConverter) ConvertToAnsi(image *ImageFrame) (string, error) {
+	text, err := processCaca(CACA_EXPORT_FMT_ANSI, this.cacaCtx, image)
+	if err != nil {
+		return "", err
+	}
+	return text, nil
+}
+
+func processCaca(format CacaExportFormat, ctx *CacaContext, img *ImageFrame) (string, error) {
 	err := ctx.dither.DitherImage(img.Data, ctx.canvas)
 	if err != nil {
 		return "", err
 	}
 
-	output, err := ctx.canvas.ExportTo(CACA_EXPORT_FMT_HTMLDIV)
+	output, err := ctx.canvas.ExportTo(format)
 	if err != nil {
 		return "", err
 	}
@@ -103,34 +111,34 @@ func processCaca(ctx *CacaContext, img *ImageFrame) (string, error) {
 	return output, nil
 }
 
-// func processSimple(img ImageFrame) string {
-// 	cols := int(120)
-// 	lines := int(cols * img.height * 18 / img.width / 40)
+// Slow and simple implementation for testing and comparison
+func processSimple(w int, h int, img *ImageFrame) string {
+	cols := int(120)
+	lines := int(cols * h * 10 / w / 17)
 
-// 	dw := int(img.width / cols)
-// 	dh := int(img.height / lines)
-// 	result := make([]byte, (cols+1)*lines)
-// 	for y := 0; y < lines; y++ {
-// 		for x := 0; x < cols; x++ {
-// 			count := 0
-// 			sx := x * dw
-// 			sy := y * dh
-// 			for dy := 0; dy < dw; dy++ {
-// 				for dx := 0; dx < dh; dx++ {
-// 					if sx+dx < img.width &&
-// 						sy+dy < img.height &&
-// 						img.Pixel(sx+dx, sy+dy) >= 128 {
-// 						count++
-// 					}
-// 				}
-// 			}
-// 			if count >= dw*dh/2 {
-// 				result[(cols+1)*y+x] = '$'
-// 			} else {
-// 				result[(cols+1)*y+x] = ' '
-// 			}
-// 		}
-// 		result[(cols+1)*y+cols] = '\n'
-// 	}
-// 	return string(result)
-// }
+	dw := int(w / cols)
+	dh := int(h / lines)
+	result := make([]byte, (cols+1)*lines)
+	data := img.Data
+	for y := 0; y < lines; y++ {
+		for x := 0; x < cols; x++ {
+			count := 0
+			sx := x * dw
+			sy := y * dh
+			for dy := 0; dy < dw; dy++ {
+				for dx := 0; dx < dh; dx++ {
+					if sx+dx < w && sy+dy < h && data[(sx+dx)*3+(sy+dy)*(w*3)] >= 128 {
+						count++
+					}
+				}
+			}
+			if count >= dw*dh/2 {
+				result[(cols+1)*y+x] = '$'
+			} else {
+				result[(cols+1)*y+x] = ' '
+			}
+		}
+		result[(cols+1)*y+cols] = '\n'
+	}
+	return string(result)
+}
