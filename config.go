@@ -1,10 +1,7 @@
 package main
 
 import (
-	"log"
 	"os"
-
-	"github.com/spf13/viper"
 )
 
 var (
@@ -17,23 +14,9 @@ var (
 	}
 )
 
-func isValidEnv(env string) bool {
-	return env == "dev" || env == "qa" || env == "production"
-}
-
 func loadConfig() {
-	config.GoEnv = os.ExpandEnv("$GO_ENV")
-	if !isValidEnv(config.GoEnv) {
-		log.Fatal("Unsupported environment")
-	}
-
-	viper.SetConfigName("config")
-	viper.AddConfigPath(os.ExpandEnv("$GOPATH/bin/config/$GO_ENV"))
-	viper.AddConfigPath(os.ExpandEnv("./config/$GO_ENV"))
-	viper.ReadInConfig()
-
-	config.ResourcesPath = os.ExpandEnv(viper.GetString("resourcesPath"))
-	config.PublicPath = os.ExpandEnv(viper.GetString("publicPath"))
-	config.WebsocketHost = viper.GetString("websocketHost")
-	config.ListenPort = viper.GetString("listenPort")
+	config.ResourcesPath = os.ExpandEnv("./resources")
+	config.PublicPath = os.ExpandEnv("./public")
+	config.WebsocketHost = "localhost:8080"
+	config.ListenPort = "8080"
 }
